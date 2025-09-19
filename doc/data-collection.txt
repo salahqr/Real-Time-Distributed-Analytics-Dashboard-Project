@@ -1,0 +1,34 @@
+Real-Time Data (Every 5 seconds):
+    Current online users count
+    Live page views
+    Button clicks and interactions
+    Form submissions
+    Real-time user locations
+    Current popular pages
+
+📈 Page & Session Data:
+    Page URL, title, and referrer
+    Time spent on each page
+    User journey through website
+    Bounce rate calculations
+    Session duration tracking
+
+💻 Device & Browser Information:
+    Screen resolution and device type
+    Operating system and browser
+    Mobile vs desktop breakdown
+    Geographic location (country/city)
+    Internet connection quality
+
+🎯 User Behavior Tracking:
+    Mouse clicks and movements
+    Scroll depth and reading patterns
+    Form interaction patterns
+    File downloads and link clicks
+    Video engagement metrics
+
+🛍️ E-commerce Events:
+    Product views and purchases
+    Shopping cart interactions
+    Checkout process tracking
+    Conversion funnel analysis

@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  clickhouse:
+    build: .
+    container_name: clickhouse
+    ports:
+      - "9000:9000"   # native client
+      - "8123:8123"   # HTTP interface
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d
+      - clickhouse_data:/var/lib/clickhouse
+
+volumes:
+  clickhouse_data:

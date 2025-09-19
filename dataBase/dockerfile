@@ -1,0 +1,4 @@
+FROM clickhouse/clickhouse-server:latest
+
+# Copy initialization scripts into the container
+COPY ./init /docker-entrypoint-initdb.d
