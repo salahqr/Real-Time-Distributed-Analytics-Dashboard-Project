@@ -299,11 +299,11 @@ SELECT
     0 as total_clicks,
     0 as total_form_submissions,
     0 as total_purchases,
-    sumState(0.0) as total_revenue,
+    sumState(toFloat32(0.0)) as total_revenue,
     uniqState('') as mobile_users,
     uniqState('') as desktop_users, 
     uniqState('') as tablet_users,
-    avgState(0.0) as bounce_rate,
+    avgState(toFloat32(0.0)) as bounce_rate,
     avgState(toUInt32(0)) as avg_session_duration
 FROM page_events
 GROUP BY hour, tracking_id;
