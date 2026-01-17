@@ -1,0 +1,289 @@
+version: "3.8"
+
+networks:
+  kafka-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+  zookeeper-data:
+  zookeeper-logs:
+  kafka-1-data:
+  kafka-2-data:
+  kafka-3-data:
+
+services:
+  # ===== SPRING BOOT CLUSTER =====
+  app-1:
+    image: my-spring-app
+    build: .
+    container_name: spring-app-1
+    restart: unless-stopped
+    depends_on:
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+      kafka-3:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9093,kafka-3:9094
+      SPRING_KAFKA_CONSUMER_GROUP_ID: kafka-project-group
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      CLICKHOUSE_URL: jdbc:clickhouse://host.docker.internal:8123/default?use_binary_format=false
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: root
+      INSTANCE_ID: app-1
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+    ports:
+      - "8081:8080"
+    networks:
+      - kafka-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  app-2:
+    image: my-spring-app
+    container_name: spring-app-2
+    restart: unless-stopped
+    depends_on:
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+      kafka-3:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9093,kafka-3:9094
+      SPRING_KAFKA_CONSUMER_GROUP_ID: kafka-project-group
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      CLICKHOUSE_URL: jdbc:clickhouse://host.docker.internal:8123/default?use_binary_format=false
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: root
+      INSTANCE_ID: app-2
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+    ports:
+      - "8082:8080" 
+    networks:
+      - kafka-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  app-3:
+    image: my-spring-app
+    container_name: spring-app-3
+    restart: unless-stopped
+    depends_on:
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+      kafka-3:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9093,kafka-3:9094
+      SPRING_KAFKA_CONSUMER_GROUP_ID: kafka-project-group
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      CLICKHOUSE_URL: jdbc:clickhouse://host.docker.internal:8123/default?use_binary_format=false
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: root
+      INSTANCE_ID: app-3
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+    ports:
+      - "8083:8080"  
+    networks:
+      - kafka-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ===== LOAD BALANCER =====
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-lb
+    restart: unless-stopped
+    depends_on:
+      - app-1
+      - app-2
+      - app-3
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - kafka-network
+    
+  # ===== REDIS =====
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - kafka-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===== ZOOKEEPER =====
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_SESSION_TIMEOUT: 18000
+      ZOOKEEPER_MIN_SESSION_TIMEOUT: 4000
+      ZOOKEEPER_MAX_SESSION_TIMEOUT: 40000
+      KAFKA_HEAP_OPTS: "-Xms128m -Xmx256m"
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-logs:/var/lib/zookeeper/log
+    networks:
+      - kafka-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===== KAFKA CLUSTER =====
+  kafka-1:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: kafka-1
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-1:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_ZOOKEEPER_SESSION_TIMEOUT_MS: 18000
+      KAFKA_ZOOKEEPER_CONNECTION_TIMEOUT_MS: 60000
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
+      KAFKA_BROKER_RACK: rack1
+    volumes:
+      - kafka-1-data:/var/lib/kafka/data
+    networks:
+      - kafka-network
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  kafka-2:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: kafka-2
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-2:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_ZOOKEEPER_SESSION_TIMEOUT_MS: 18000
+      KAFKA_ZOOKEEPER_CONNECTION_TIMEOUT_MS: 60000
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
+      KAFKA_BROKER_RACK: rack2
+    volumes:
+      - kafka-2-data:/var/lib/kafka/data
+    networks:
+      - kafka-network
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9093 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  kafka-3:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: kafka-3
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9094:9094"
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-3:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 2
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_ZOOKEEPER_SESSION_TIMEOUT_MS: 18000
+      KAFKA_ZOOKEEPER_CONNECTION_TIMEOUT_MS: 60000
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
+      KAFKA_BROKER_RACK: rack3
+    volumes:
+      - kafka-3-data:/var/lib/kafka/data
+    networks:
+      - kafka-network
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9094 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s

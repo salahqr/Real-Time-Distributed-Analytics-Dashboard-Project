@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  nginx:
+    build: .
+    container_name: nginx-lb
+    ports:
+      - "8080:80"
+    networks:
+      - app-networks
+    restart: unless-stopped
+
+networks:
+  app-networks:
+    driver: bridge

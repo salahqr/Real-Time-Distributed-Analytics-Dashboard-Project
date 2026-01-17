@@ -1,0 +1,16 @@
+<script 
+  async 
+  src="https://cdn.jsdelivr.net/gh/salahqr/Real-Time-Distributed-Analytics-Dashboard-Project@main/analytics-tracker.js"
+  data-endpoint="http://localhost:8080/receive_data"
+  data-tracking-id="USER_UNIQUE_ID_HERE"
+  data-batch-size="10"
+  data-interval="7000"
+  data-debug="true">
+</script>
+
+
+<script>
+  window.analytics = window.analytics || [];
+  function track(){window.analytics.push(arguments);}
+  track('init', { trackingId: 'YOUR-ID' });
+</script>
