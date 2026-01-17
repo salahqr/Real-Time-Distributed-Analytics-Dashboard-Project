@@ -20,7 +20,11 @@ import static org.junit.jupiter.api.Assertions.*;
     properties = {
         "spring.datasource.url=jdbc:clickhouse://localhost:8123/default?use_binary_format=false",
         "spring.datasource.username=default",
+<<<<<<< HEAD
         "spring.datasource.password=root"  // ✅ correct password
+=======
+        "spring.datasource.password=root"
+>>>>>>> 39bef9c52dfbe4ac90b6246fa6fb564fb40b1660
     }
 )
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -32,8 +36,11 @@ public class RealIntegrationTest {
     private final RestTemplate restTemplate = new RestTemplate();
     private static final String DOCKER_CLUSTER_URL = "http://localhost:8080"; // Nginx load balancer
     private static final String TEST_TRACKING_ID = "integration-test-" + System.currentTimeMillis();
+<<<<<<< HEAD
     private static final int KAFKA_WAIT_SECONDS = 15; // Increased wait time~
 
+=======
+>>>>>>> 39bef9c52dfbe4ac90b6246fa6fb564fb40b1660
 
     @BeforeAll
     static void checkDockerRunning() {

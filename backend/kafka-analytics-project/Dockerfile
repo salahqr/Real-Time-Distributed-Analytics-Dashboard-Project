@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Stage 1: Build with Maven
 FROM maven:3.9-eclipse-temurin-21 AS build
 
@@ -19,6 +20,14 @@ WORKDIR /app
 COPY --from=build /build/target/*.jar /app/app.jar
 
 # Install curl for healthcheck
+=======
+FROM eclipse-temurin:21-jdk-jammy
+
+WORKDIR /app
+
+COPY Kafka-Project/target/*.jar /app/app.jar
+
+>>>>>>> 39bef9c52dfbe4ac90b6246fa6fb564fb40b1660
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 EXPOSE 8080

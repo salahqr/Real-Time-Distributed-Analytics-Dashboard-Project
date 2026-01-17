@@ -120,10 +120,15 @@ public class ProducerController {
 
             for (JsonNode eventNode : requests) {
                 try {
+<<<<<<< HEAD
                     // ✅ CORRECT - checks "event_type" first, then falls back to "type"
                 String eventType = eventNode.has("event_type") ? 
                     eventNode.get("event_type").asText() : 
                     (eventNode.has("type") ? eventNode.get("type").asText() : "unknown");
+=======
+                    String eventType = eventNode.has("type") ? 
+                        eventNode.get("type").asText() : "unknown";
+>>>>>>> 39bef9c52dfbe4ac90b6246fa6fb564fb40b1660
                     
                     if ("unknown".equals(eventType) || !VALID_TOPICS.contains(eventType)) {
                         skippedCount++;
