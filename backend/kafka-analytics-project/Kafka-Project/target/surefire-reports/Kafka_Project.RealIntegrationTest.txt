@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: Kafka_Project.RealIntegrationTest
 -------------------------------------------------------------------------------
-Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 42.22 s -- in Kafka_Project.RealIntegrationTest
+Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 7.179 s -- in Kafka_Project.RealIntegrationTest

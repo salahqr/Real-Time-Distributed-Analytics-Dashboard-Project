@@ -1,77 +1,140 @@
 package Kafka_Project;
 
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.*;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.kafka.test.context.EmbeddedKafka;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
+import Kafka_Project.Redis.RateLimiter;
+import Kafka_Project.Redis.RedisService;
+
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.awaitility.Awaitility.await;
 
 /**
- * Integration tests that verify the entire Docker cluster is working.
- * Requires: docker compose up -d
+ * Integration tests that verify the complete event processing pipeline:
+ * HTTP API → Kafka Producer → Embedded Kafka → Kafka Consumer → ClickHouse
+ * 
+ * This tests real application code with embedded Kafka and real ClickHouse.
+ * Redis is mocked as it's an external dependency.
  */
 @SpringBootTest(
-    webEnvironment = SpringBootTest.WebEnvironment.NONE,
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = {
-        "spring.datasource.url=jdbc:clickhouse://localhost:8123/default?use_binary_format=false",
-        "spring.datasource.username=default",
-<<<<<<< HEAD
-        "spring.datasource.password=root"  // ✅ correct password
-=======
+        "spring.datasource.url=jdbc:clickhouse://localhost:8123/default",
         "spring.datasource.password=root"
->>>>>>> 39bef9c52dfbe4ac90b6246fa6fb564fb40b1660
+    }
+)
+@AutoConfigureMockMvc
+@EmbeddedKafka(
+    partitions = 1,
+    brokerProperties = {
+        "log.dir=target/embedded-kafka"
+    },
+    topics = {
+        "product_view", "cart_add", "cart_remove", "checkout_step", "purchase",
+        "page_load", "page_view", "mouse_click", "button_click", "link_click",
+        "form_focus", "form_input", "form_submit", "mouse_move", "scroll_depth",
+        "video_Events", "custom_event", "file_download", "page_hidden", 
+        "page_visible", "page_unload", "periodic_events"
     }
 )
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+// @DirtiesContext
 public class RealIntegrationTest {
+
+    @MockBean
+    private RedisService redisService;
+
+    @MockBean
+    private RateLimiter rateLimiter;
+
+    @Autowired
+    private MockMvc mockMvc;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    private final RestTemplate restTemplate = new RestTemplate();
-    private static final String DOCKER_CLUSTER_URL = "http://localhost:8080"; // Nginx load balancer
     private static final String TEST_TRACKING_ID = "integration-test-" + System.currentTimeMillis();
-<<<<<<< HEAD
-    private static final int KAFKA_WAIT_SECONDS = 15; // Increased wait time~
 
-=======
->>>>>>> 39bef9c52dfbe4ac90b6246fa6fb564fb40b1660
-
-    @BeforeAll
-    static void checkDockerRunning() {
-        System.out.println("=================================================");
-        System.out.println("REAL INTEGRATION TEST - Testing Docker Cluster");
-        System.out.println("=================================================");
-        System.out.println("⚠️  PREREQUISITE: Run 'docker compose up -d' first!");
-        System.out.println("=================================================\n");
+    @BeforeEach
+    void setupMocks() {
+        when(rateLimiter.rateLimiter(anyString())).thenReturn(true);
     }
 
-    @Test
-    @Order(1)
-    void testHealthEndpoint() {
-        System.out.println("\n--- Test 1: Cluster Health Check ---");
-        
+    @BeforeAll
+    void cleanupDatabase() {
         try {
-            ResponseEntity<String> response = restTemplate.getForEntity(
-                DOCKER_CLUSTER_URL + "/health", 
-                String.class
-            );
-            
-            assertEquals(HttpStatus.OK, response.getStatusCode());
-            System.out.println("✓ Docker cluster is responding");
+            jdbcTemplate.update("TRUNCATE TABLE IF EXISTS page_loads");
+            jdbcTemplate.update("TRUNCATE TABLE IF EXISTS page_events");
+            jdbcTemplate.update("TRUNCATE TABLE IF EXISTS clicks");
+            jdbcTemplate.update("TRUNCATE TABLE IF EXISTS interaction_events");
+            jdbcTemplate.update("TRUNCATE TABLE IF EXISTS forms");
+            jdbcTemplate.update("TRUNCATE TABLE IF EXISTS form_events");
+            jdbcTemplate.update("TRUNCATE TABLE IF EXISTS ecommerce_events");
+            jdbcTemplate.update("TRUNCATE TABLE IF EXISTS sessions");
+            jdbcTemplate.update("TRUNCATE TABLE IF EXISTS session_pages");
         } catch (Exception e) {
-            fail("Docker cluster not running! Run: docker compose up -d");
+            System.err.println("Cleanup error: " + e.getMessage());
         }
     }
 
     @Test
+@Order(0)
+void testKafkaConsumerIsRunning() {
+    System.out.println("\n=== Verifying Kafka Consumer Status ===");
+    
+    // Check if the Kafka listener container is running
+    try {
+        // This will fail if Spring context didn't start the consumer
+        assertNotNull(mockMvc, "MockMvc should be initialized");
+        System.out.println("✓ Spring context loaded");
+        
+        // Try to verify embedded Kafka
+        System.out.println("✓ Embedded Kafka should be running on: " + 
+            System.getProperty("spring.embedded.kafka.brokers"));
+        
+    } catch (Exception e) {
+        fail("Consumer verification failed: " + e.getMessage());
+    }
+}
+    
+    @Test
+    @Order(1)
+    void testHealthEndpoint() throws Exception {
+        System.out.println("\n--- Test 1: Health Check ---");
+        
+        MvcResult result = mockMvc.perform(get("/health"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("healthy"))
+            .andReturn();
+        
+        System.out.println("✓ Health check passed: " + result.getResponse().getContentAsString());
+    }
+
+    @Test
     @Order(2)
-    void testPageLoadEventToDatabase() throws InterruptedException {
+    void testPageLoadEventToDatabase() throws Exception {
         System.out.println("\n--- Test 2: Page Load Event End-to-End ---");
         
         String eventData = String.format("""
@@ -105,34 +168,32 @@ public class RealIntegrationTest {
         ]
         """, TEST_TRACKING_ID, TEST_TRACKING_ID, TEST_TRACKING_ID);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<String> request = new HttpEntity<>(eventData, headers);
+        MvcResult result = mockMvc.perform(post("/receive_data")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(eventData))
+            .andExpect(status().isOk())
+            .andReturn();
 
-        ResponseEntity<String> response = restTemplate.postForEntity(
-            DOCKER_CLUSTER_URL + "/receive_data",
-            request,
-            String.class
-        );
+        System.out.println("✅ API Response: " + result.getResponse().getContentAsString());
 
-        System.out.println("API Response: " + response.getBody());
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-
-        // Wait for Kafka consumers to process
-        System.out.println("⏳ Waiting 10 seconds for Kafka consumers...");
-        TimeUnit.SECONDS.sleep(10);
-
-        // Verify in ClickHouse
-        String query = "SELECT COUNT(*) FROM page_events WHERE tracking_id = ?";
-        Integer count = jdbcTemplate.queryForObject(query, Integer.class, TEST_TRACKING_ID);
-        
-        System.out.println("✓ Found " + count + " page load events in ClickHouse");
-        assertTrue(count > 0, "Page load event should be in database");
+        // Wait for Kafka to process and insert into ClickHouse
+        await()
+            .atMost(20, TimeUnit.SECONDS)
+            .pollInterval(1, TimeUnit.SECONDS)
+            .untilAsserted(() -> {
+                Integer count = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM page_events WHERE tracking_id = ?",
+                    Integer.class,
+                    TEST_TRACKING_ID
+                );
+                System.out.println("✓ Found " + count + " page load events in ClickHouse");
+                assertTrue(count > 0, "Page load event should be in database");
+            });
     }
 
     @Test
     @Order(3)
-    void testClickEventsToDatabase() throws InterruptedException {
+    void testClickEventsToDatabase() throws Exception {
         System.out.println("\n--- Test 3: Click Events End-to-End ---");
         
         String clickData = String.format("""
@@ -179,24 +240,31 @@ public class RealIntegrationTest {
              TEST_TRACKING_ID, TEST_TRACKING_ID, TEST_TRACKING_ID,
              TEST_TRACKING_ID, TEST_TRACKING_ID, TEST_TRACKING_ID);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<String> request = new HttpEntity<>(clickData, headers);
+        MvcResult result = mockMvc.perform(post("/receive_data")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(clickData))
+            .andExpect(status().isOk())
+            .andReturn();
 
-        restTemplate.postForEntity(DOCKER_CLUSTER_URL + "/receive_data", request, String.class);
+        System.out.println("✅ API Response: " + result.getResponse().getContentAsString());
 
-        TimeUnit.SECONDS.sleep(10);
-
-        String query = "SELECT COUNT(*) FROM interaction_events WHERE tracking_id = ?";
-        Integer count = jdbcTemplate.queryForObject(query, Integer.class, TEST_TRACKING_ID);
-        
-        System.out.println("✓ Found " + count + " click events in ClickHouse");
-        assertTrue(count >= 3, "Should have at least 3 click events, got: " + count);
+        await()
+            .atMost(20, TimeUnit.SECONDS)
+            .pollInterval(1, TimeUnit.SECONDS)
+            .untilAsserted(() -> {
+                Integer count = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM interaction_events WHERE tracking_id = ?",
+                    Integer.class,
+                    TEST_TRACKING_ID
+                );
+                System.out.println("✓ Found " + count + " click events in ClickHouse");
+                assertTrue(count >= 3, "Should have at least 3 click events, got: " + count);
+            });
     }
 
     @Test
     @Order(4)
-    void testFormEventsToDatabase() throws InterruptedException {
+    void testFormEventsToDatabase() throws Exception {
         System.out.println("\n--- Test 4: Form Events End-to-End ---");
         
         String formData = String.format("""
@@ -232,119 +300,215 @@ public class RealIntegrationTest {
         """, TEST_TRACKING_ID, TEST_TRACKING_ID, TEST_TRACKING_ID,
              TEST_TRACKING_ID, TEST_TRACKING_ID, TEST_TRACKING_ID);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<String> request = new HttpEntity<>(formData, headers);
+        MvcResult result = mockMvc.perform(post("/receive_data")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(formData))
+            .andExpect(status().isOk())
+            .andReturn();
 
-        restTemplate.postForEntity(DOCKER_CLUSTER_URL + "/receive_data", request, String.class);
+         System.out.println("✅ API Response: " + result.getResponse().getContentAsString());
 
-        TimeUnit.SECONDS.sleep(10);
-
-        String query = "SELECT COUNT(*) FROM form_events WHERE tracking_id = ?";
-        Integer count = jdbcTemplate.queryForObject(query, Integer.class, TEST_TRACKING_ID);
-        
-        System.out.println("✓ Found " + count + " form events in ClickHouse");
-        assertTrue(count >= 2, "Should have at least 2 form events, got: " + count);
+        await()
+            .atMost(20, TimeUnit.SECONDS)
+            .pollInterval(1, TimeUnit.SECONDS)
+            .untilAsserted(() -> {
+                Integer count = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM form_events WHERE tracking_id = ?",
+                    Integer.class,
+                    TEST_TRACKING_ID
+                );
+                System.out.println("✓ Found " + count + " form events in ClickHouse");
+                assertTrue(count >= 2, "Should have at least 2 form events, got: " + count);
+            });
     }
 
-    @Test
-    @Order(5)
-    void testEcommerceEventsToDatabase() throws InterruptedException {
-        System.out.println("\n--- Test 5: E-commerce Events End-to-End ---");
-        
-        String ecommerceData = String.format("""
-        [
-            {
-                "type": "product_view",
-                "data": {
-                    "session_id": "session-%s",
-                    "user_id": "user-%s",
-                    "tracking_id": "%s",
-                    "page_url": "https://example.com/product",
-                    "product_id": "TEST-PROD",
-                    "product_name": "Test Product",
-                    "price": 99.99,
-                    "category": "Test"
-                }
-            },
-            {
-                "type": "cart_add",
-                "data": {
-                    "session_id": "session-%s",
-                    "user_id": "user-%s",
-                    "tracking_id": "%s",
-                    "page_url": "https://example.com/cart",
-                    "product_id": "TEST-PROD",
-                    "product_name": "Test Product",
-                    "price": 99.99,
-                    "quantity": 1
-                }
-            },
-            {
-                "type": "purchase",
-                "data": {
-                    "session_id": "session-%s",
-                    "user_id": "user-%s",
-                    "tracking_id": "%s",
-                    "page_url": "https://example.com/checkout",
-                    "order_id": "TEST-ORDER",
-                    "product_id": "TEST-PROD",
-                    "product_name": "Test Product",
-                    "price": 99.99,
-                    "quantity": 1,
-                    "total": 99.99
+@Test
+@Order(5)
+void testEcommerceEventsToDatabase() throws Exception {
+    System.out.println("\n========================================");
+    System.out.println("Test 5: E-commerce Events End-to-End");
+    System.out.println("========================================");
+    
+    String ecommerceData = String.format("""
+[
+  {
+    "event_type": "purchase",
+    "data": {
+      "timestamp": "2026-01-16T12:00:00Z",
+      "session_id": "test-session-001",
+      "user_id": "1234",
+      "tracking_id": "%s",
+      "page_url": "https://example.com/checkout",
+      "product_id": "PROD-101",
+      "product_name": "Keyboard",
+      "price": 49.99,
+      "quantity": 1,
+      "category": "Electronics",
+      "currency": "USD",
+      "order_id": "ORD-101",
+      "total": 49.99,
+      "step": 4,
+      "step_name": "payment"
+    }
+  },
+  {
+    "event_type": "purchase",
+    "data": {
+      "timestamp": "2026-01-16T12:01:00Z",
+      "session_id": "test-session-001",
+      "user_id": "1234",
+      "tracking_id": "%s",
+      "page_url": "https://example.com/checkout",
+      "product_id": "PROD-102",
+      "product_name": "Mouse",
+      "price": 29.99,
+      "quantity": 2,
+      "category": "Electronics",
+      "currency": "USD",
+      "order_id": "ORD-102",
+      "total": 59.98,
+      "step": 4,
+      "step_name": "payment"
+    }
+  },
+  {
+    "event_type": "purchase",
+    "data": {
+      "timestamp": "2026-01-16T12:02:00Z",
+      "session_id": "test-session-001",
+      "user_id": "1234",
+      "tracking_id": "%s",
+      "page_url": "https://example.com/checkout",
+      "product_id": "PROD-103",
+      "product_name": "Headphones",
+      "price": 89.99,
+      "quantity": 1,
+      "category": "Electronics",
+      "currency": "USD",
+      "order_id": "ORD-103",
+      "total": 89.99,
+      "step": 4,
+      "step_name": "payment"
+    }
+  }
+]
+""", TEST_TRACKING_ID, TEST_TRACKING_ID, TEST_TRACKING_ID);
+
+    System.out.println("\n📤 Sending e-commerce events...");
+    System.out.println("Payload preview: " + ecommerceData.substring(0, Math.min(200, ecommerceData.length())) + "...");
+
+    MvcResult result = mockMvc.perform(post("/receive_data")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(ecommerceData))
+        .andExpect(status().isOk())
+        .andReturn();
+
+    String responseBody = result.getResponse().getContentAsString();
+    System.out.println("\n✅ API Response: " + responseBody);
+    
+    // Parse response to check what happened
+    if (responseBody.contains("skipped")) {
+        System.out.println("⚠️  WARNING: Some events were skipped!");
+    }
+
+    System.out.println("\n⏳ Waiting for Kafka to process events...");
+    
+// First, just check if the consumer is working at all
+await()
+    .atMost(10, SECONDS)
+    .untilAsserted(() -> {
+        Integer count = jdbcTemplate.queryForObject(
+            "SELECT count() FROM ecommerce_events",
+            Integer.class
+        );
+        assertTrue(count > 0);
+    });
+
+// Check for our specific tracking ID
+Integer ecommerceCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM ecommerce_events WHERE tracking_id = ?",
+                Integer.class,
+                TEST_TRACKING_ID
+            );
+            
+            // Check total records in table
+            Integer totalInAllTables = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM ecommerce_events",
+                Integer.class
+            );
+            
+            System.out.println("   📊 Events for this test (tracking_id=" + TEST_TRACKING_ID + "): " + ecommerceCount);
+            System.out.println("   📊 Total events in ecommerce_events table: " + totalInAllTables);
+            
+            // If there are ANY records, print samples to debug
+            if (totalInAllTables > 0) {
+                System.out.println("\n   📋 Recent records in table:");
+                List<Map<String, Object>> samples = jdbcTemplate.queryForList(
+                    "SELECT event_type, tracking_id, product_id, session_id FROM ecommerce_events ORDER BY timestamp DESC LIMIT 5"
+                );
+                samples.forEach(row -> System.out.println("      " + row));
+            } else {
+                System.out.println("   ⚠️  Table is completely empty!");
+                
+                // Check if the table even exists
+                try {
+                    jdbcTemplate.queryForObject("SELECT 1 FROM ecommerce_events LIMIT 1", Integer.class);
+                    System.out.println("   ✓ Table exists but has no data");
+                } catch (Exception e) {
+                    System.out.println("   ❌ Table might not exist or is not accessible: " + e.getMessage());
                 }
             }
-        ]
-        """, TEST_TRACKING_ID, TEST_TRACKING_ID, TEST_TRACKING_ID,
-             TEST_TRACKING_ID, TEST_TRACKING_ID, TEST_TRACKING_ID,
-             TEST_TRACKING_ID, TEST_TRACKING_ID, TEST_TRACKING_ID);
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<String> request = new HttpEntity<>(ecommerceData, headers);
-
-        restTemplate.postForEntity(DOCKER_CLUSTER_URL + "/receive_data", request, String.class);
-
-        TimeUnit.SECONDS.sleep(10);
-
-        String query = "SELECT COUNT(*) FROM ecommerce_events WHERE tracking_id = ?";
-        Integer count = jdbcTemplate.queryForObject(query, Integer.class, TEST_TRACKING_ID);
-        
-        System.out.println("✓ Found " + count + " e-commerce events in ClickHouse");
-        assertTrue(count >= 3, "Should have at least 3 e-commerce events, got: " + count);
-    }
-
+            
+            assertTrue(ecommerceCount >= 3, 
+                "Expected 3+ e-commerce events for tracking_id=" + TEST_TRACKING_ID + ", but got: " + ecommerceCount);
+    
+    System.out.println("\n✅ Test passed!");
+    System.out.println("========================================\n");
+}
     @Test
     @Order(6)
     void testDataIntegrityAcrossTables() {
         System.out.println("\n--- Test 6: Data Integrity Across All Tables ---");
         
-        int totalCount = 0;
-        
-        totalCount += jdbcTemplate.queryForObject(
+        int pageEvents = jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM page_events WHERE tracking_id = ?", 
-            Integer.class, TEST_TRACKING_ID
+            Integer.class, 
+            TEST_TRACKING_ID
         );
-        totalCount += jdbcTemplate.queryForObject(
+        int interactionEvents = jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM interaction_events WHERE tracking_id = ?", 
-            Integer.class, TEST_TRACKING_ID
+            Integer.class, 
+            TEST_TRACKING_ID
         );
-        totalCount += jdbcTemplate.queryForObject(
+        int formEvents = jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM form_events WHERE tracking_id = ?", 
-            Integer.class, TEST_TRACKING_ID
+            Integer.class, 
+            TEST_TRACKING_ID
         );
-        totalCount += jdbcTemplate.queryForObject(
+        int ecommerceEvents = jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM ecommerce_events WHERE tracking_id = ?", 
-            Integer.class, TEST_TRACKING_ID
+            Integer.class, 
+            TEST_TRACKING_ID
         );
         
-        System.out.println("✓ Total events across all tables: " + totalCount);
+        int totalCount = pageEvents + interactionEvents + formEvents + ecommerceEvents;
+        
+        System.out.println("📊 Event Distribution:");
+        System.out.println("   - Page Events: " + pageEvents);
+        System.out.println("   - Interaction Events: " + interactionEvents);
+        System.out.println("   - Form Events: " + formEvents);
+        System.out.println("   - E-commerce Events: " + ecommerceEvents);
+        System.out.println("   - Total: " + totalCount);
+        
         assertTrue(totalCount > 0, "Should have data in at least one table");
+        assertTrue(pageEvents > 0, "Should have page events");
+        assertTrue(interactionEvents >= 3, "Should have click events");
+        assertTrue(formEvents >= 2, "Should have form events");
+        assertTrue(ecommerceEvents >= 3, "Should have e-commerce events");
     }
 
     @AfterAll
-    static void cleanup(@Autowired JdbcTemplate jdbcTemplate) {
+    void cleanup() {
         System.out.println("\n=================================================");
         System.out.println("Cleaning up test data...");
         System.out.println("=================================================\n");

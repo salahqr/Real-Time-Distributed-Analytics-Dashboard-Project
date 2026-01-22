@@ -123,12 +123,12 @@ CREATE TABLE IF NOT EXISTS ecommerce_events (
     event_type String, -- CHANGED FROM ENUM
     product_id Nullable(String),
     product_name Nullable(String),
-    price Nullable(Float32),
+    price Nullable(Float64),
     quantity Nullable(UInt16),
     category LowCardinality(Nullable(String)),
-    currency LowCardinality(String) DEFAULT 'USD',
+    currency LowCardinality(Nullable(String)) DEFAULT 'USD',
     order_id Nullable(String),
-    total Nullable(Float32),
+    total Nullable(Float64),
     step Nullable(UInt8),
     step_name Nullable(String)
 ) ENGINE = MergeTree()
@@ -629,38 +629,55 @@ SELECT toStartOfDay(timestamp) as timestamp, '1d' as interval_type, tracking_id,
     now() as created_at
 FROM form_events GROUP BY timestamp, interval_type, tracking_id, form_id;
 
--- MV 17-18: E-commerce Metrics
-CREATE MATERIALIZED VIEW IF NOT EXISTS mv_ecommerce TO ecommerce_metrics AS
-SELECT toStartOfHour(timestamp) as timestamp, '1h' as interval_type, tracking_id,
-    countIf(event_type = 'product_view') as product_views,
-    countIf(event_type = 'cart_add') as cart_adds,
-    countIf(event_type = 'cart_remove') as cart_removes,
-    countIf(event_type = 'checkout_step') as checkouts,
-    countIf(event_type = 'purchase') as total_orders,
-    sumIf(total, event_type = 'purchase') as total_revenue,
-    if(countIf(event_type = 'purchase') > 0, sumIf(total, event_type = 'purchase') / countIf(event_type = 'purchase'), 0) as avg_order_value,
-    uniqIf(user_id, event_type = 'purchase') as unique_customers,
-    if(countIf(event_type = 'product_view') > 0, countIf(event_type = 'cart_add') * 100.0 / countIf(event_type = 'product_view'), 0) as view_to_cart_rate,
-    if(countIf(event_type = 'cart_add') > 0, countIf(event_type = 'checkout_step') * 100.0 / countIf(event_type = 'cart_add'), 0) as cart_to_checkout_rate,
-    if(countIf(event_type = 'checkout_step') > 0, countIf(event_type = 'purchase') * 100.0 / countIf(event_type = 'checkout_step'), 0) as checkout_to_purchase_rate,
-    now() as created_at
-FROM ecommerce_events GROUP BY tracking_id, timestamp;
+-- MV 17-18: E-commerce 
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS mv_ecommerce_1d TO ecommerce_metrics AS
-SELECT toStartOfDay(timestamp) as timestamp, '1d' as interval_type, tracking_id,
-    countIf(event_type = 'product_view') as product_views,
-    countIf(event_type = 'cart_add') as cart_adds,
-    countIf(event_type = 'cart_remove') as cart_removes,
-    countIf(event_type = 'checkout_step') as checkouts,
-    countIf(event_type = 'purchase') as total_orders,
+CREATE MATERIALIZED VIEW mv_ecommerce TO ecommerce_metrics AS
+SELECT 
+    toStartOfHour(timestamp) as timestamp, 
+    '1h' as interval_type, 
+    tracking_id,
+    CAST(countIf(event_type = 'product_view') AS UInt32) as product_views,
+    CAST(countIf(event_type = 'cart_add') AS UInt32) as cart_adds,
+    CAST(countIf(event_type = 'cart_remove') AS UInt32) as cart_removes,
+    CAST(countIf(event_type = 'checkout_step') AS UInt32) as checkouts,
+    CAST(countIf(event_type = 'purchase') AS UInt32) as total_orders,
     sumIf(total, event_type = 'purchase') as total_revenue,
-    avgIf(total, event_type = 'purchase') as avg_order_value,
-    uniqIf(user_id, event_type = 'purchase') as unique_customers,
-    if(countIf(event_type = 'product_view') > 0, countIf(event_type = 'cart_add') * 100.0 / countIf(event_type = 'product_view'), 0) as view_to_cart_rate,
-    if(countIf(event_type = 'cart_add') > 0, countIf(event_type = 'checkout_step') * 100.0 / countIf(event_type = 'cart_add'), 0) as cart_to_checkout_rate,
-    if(countIf(event_type = 'checkout_step') > 0, countIf(event_type = 'purchase') * 100.0 / countIf(event_type = 'checkout_step'), 0) as checkout_to_purchase_rate,
+    CAST(if(countIf(event_type = 'purchase') > 0, sumIf(total, event_type = 'purchase') / countIf(event_type = 'purchase'), 0) AS Float32) as avg_order_value,
+    CAST(uniqIf(user_id, event_type = 'purchase') AS UInt32) as unique_customers,
+    CAST(if(countIf(event_type = 'product_view') > 0, countIf(event_type = 'cart_add') * 100.0 / countIf(event_type = 'product_view'), 0) AS Float32) as view_to_cart_rate,
+    CAST(if(countIf(event_type = 'cart_add') > 0, countIf(event_type = 'checkout_step') * 100.0 / countIf(event_type = 'cart_add'), 0) AS Float32) as cart_to_checkout_rate,
+    CAST(if(countIf(event_type = 'checkout_step') > 0, countIf(event_type = 'purchase') * 100.0 / countIf(event_type = 'checkout_step'), 0) AS Float32) as checkout_to_purchase_rate,
     now() as created_at
-FROM ecommerce_events GROUP BY timestamp, interval_type, tracking_id;
+FROM ecommerce_events 
+GROUP BY tracking_id, toStartOfHour(timestamp);
+
+CREATE MATERIALIZED VIEW mv_ecommerce_1d TO ecommerce_metrics AS
+SELECT 
+    day_timestamp as timestamp, 
+    '1d' as interval_type, 
+    tracking_id,
+    CAST(countIf(event_type = 'product_view') AS UInt32) as product_views,
+    CAST(countIf(event_type = 'cart_add') AS UInt32) as cart_adds,
+    CAST(countIf(event_type = 'cart_remove') AS UInt32) as cart_removes,
+    CAST(countIf(event_type = 'checkout_step') AS UInt32) as checkouts,
+    CAST(countIf(event_type = 'purchase') AS UInt32) as total_orders,
+    CAST(sumIf(total, event_type = 'purchase') AS Float64) as total_revenue,
+    CAST(avgIf(total, event_type = 'purchase') AS Float32) as avg_order_value,
+    CAST(uniqIf(user_id, event_type = 'purchase') AS UInt32) as unique_customers,
+    CAST(if(countIf(event_type = 'product_view') > 0, countIf(event_type = 'cart_add') * 100.0 / countIf(event_type = 'product_view'), 0) AS Float32) as view_to_cart_rate,
+    CAST(if(countIf(event_type = 'cart_add') > 0, countIf(event_type = 'checkout_step') * 100.0 / countIf(event_type = 'cart_add'), 0) AS Float32) as cart_to_checkout_rate,
+    CAST(if(countIf(event_type = 'checkout_step') > 0, countIf(event_type = 'purchase') * 100.0 / countIf(event_type = 'checkout_step'), 0) AS Float32) as checkout_to_purchase_rate,
+    now() as created_at
+FROM (
+    SELECT 
+        toStartOfDay(timestamp) as day_timestamp,
+        tracking_id,
+        event_type,
+        total,
+        user_id
+    FROM ecommerce_events
+) 
+GROUP BY day_timestamp, tracking_id;
 
 -- MV 19: Product Metrics
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_product TO product_metrics AS

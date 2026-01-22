@@ -4,6 +4,8 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.kafka.test.context.EmbeddedKafka;
+import org.springframework.test.annotation.DirtiesContext;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -32,14 +34,26 @@ import static org.junit.jupiter.api.Assertions.*;
  * @version 2.0
  */
 @SpringBootTest(
-    webEnvironment = SpringBootTest.WebEnvironment.NONE,
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = {
         "spring.datasource.url=jdbc:clickhouse://localhost:8123/default",
         "spring.datasource.username=default",
         "spring.datasource.password=root"
     }
 )
+@EmbeddedKafka(
+    partitions = 1,
+    topics = {
+        "product_view", "cart_add", "cart_remove", "checkout_step", "purchase",
+        "page_load", "page_view", "mouse_click", "button_click", "link_click",
+        "form_focus", "form_input", "form_submit", "mouse_move", "scroll_depth",
+        "video_Events", "custom_event", "file_download", "page_hidden", 
+        "page_visible", "page_unload", "periodic_events"
+    }
+)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@DirtiesContext
 public class ClickHouseDatabaseTest {
 
     @Autowired
@@ -169,8 +183,9 @@ void test00_DebugTableSchema() {
             "mv_geo_1h", "mv_geo_1d", "mv_source_1h", "mv_source_1d",
             "mv_interaction", "mv_interaction_1d",
             "mv_form", "mv_form_1d", "mv_ecommerce", "mv_ecommerce_1d",
-            "mv_product", "mv_video", "mv_conversion_funnel"
+            "mv_product", "mv_video", "mv_conversion_funnel" 
         };
+
 
         int found = 0;
         for (String view : views) {

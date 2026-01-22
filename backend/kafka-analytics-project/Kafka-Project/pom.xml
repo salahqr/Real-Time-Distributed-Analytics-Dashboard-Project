@@ -56,15 +56,12 @@
 			<groupId>org.springframework</groupId>
 			<artifactId>spring-jdbc</artifactId>
 		</dependency>
-<<<<<<< HEAD
 
 		<dependency>
     <groupId>org.springframework.kafka</groupId>
     <artifactId>spring-kafka-test</artifactId>
     <scope>test</scope>
 </dependency>
-=======
->>>>>>> 39bef9c52dfbe4ac90b6246fa6fb564fb40b1660
 		
 		<!-- Jackson -->
 		<dependency>
@@ -77,7 +74,6 @@
 			<groupId>org.slf4j</groupId>
 			<artifactId>slf4j-api</artifactId>
 		</dependency>
-<<<<<<< HEAD
 <dependency>
 	<groupId>ch.qos.logback</groupId>
 	<artifactId>logback-classic</artifactId>
@@ -89,12 +85,6 @@
 	<scope>test</scope>
 </dependency>
 
-=======
-		<dependency>
-			<groupId>ch.qos.logback</groupId>
-			<artifactId>logback-classic</artifactId>
-		</dependency>
->>>>>>> 39bef9c52dfbe4ac90b6246fa6fb564fb40b1660
 	</dependencies>
 
 	<build>

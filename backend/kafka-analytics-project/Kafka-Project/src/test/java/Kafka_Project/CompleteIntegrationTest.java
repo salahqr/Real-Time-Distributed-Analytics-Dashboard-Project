@@ -1,11 +1,7 @@
 package Kafka_Project;
 
-<<<<<<< HEAD
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
-=======
->>>>>>> 39bef9c52dfbe4ac90b6246fa6fb564fb40b1660
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -18,53 +14,40 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.http.MediaType;
 
 import Kafka_Project.Redis.*;
-import Kafka_Project.service.KafkaProducerService;
+import org.springframework.kafka.test.context.EmbeddedKafka;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-<<<<<<< HEAD
+import org.springframework.test.web.servlet.MvcResult;
 
-import java.time.LocalDateTime;
-import java.time.Duration;
-import java.time.format.DateTimeFormatter;
 import java.util.concurrent.TimeUnit;
 
-=======
->>>>>>> 39bef9c52dfbe4ac90b6246fa6fb564fb40b1660
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
-<<<<<<< HEAD
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-=======
->>>>>>> 39bef9c52dfbe4ac90b6246fa6fb564fb40b1660
 
 @SpringBootTest(
     properties = "spring.profiles.active=test",
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT
 )
 @AutoConfigureMockMvc
-<<<<<<< HEAD
 @EmbeddedKafka(
     partitions = 1,
-    topics = {"product_view", "cart_add", "cart_remove", "checkout_step", "purchase"}
+    topics = {
+        "product_view", "cart_add", "cart_remove", "checkout_step", "purchase",
+        "page_load", "page_view", "mouse_click", "button_click", "link_click",
+        "form_focus", "form_input", "form_submit", "mouse_move", "scroll_depth",
+        "video_Events", "custom_event", "file_download", "page_hidden", 
+        "page_visible", "page_unload", "periodic_events"
+    }
 )
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@DirtiesContext
 public class CompleteIntegrationTest {
 
     // @MockBean
     // private KafkaProducerService kafkaProducerService;
-=======
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class CompleteIntegrationTest {
-
-    @MockBean
-    private KafkaProducerService kafkaProducerService;
->>>>>>> 39bef9c52dfbe4ac90b6246fa6fb564fb40b1660
     
     @MockBean
     private RedisService redisService; 
@@ -77,18 +60,18 @@ public class CompleteIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
-<<<<<<< HEAD
 // In ClickHouseDatabaseTest.java
 
 @BeforeEach
 void setup() {
     // Setup test user
+    when(rateLimiter.rateLimiter(anyString())).thenReturn(true);
+
     String makeUser = 
         "INSERT INTO user (user_id, company_name, email, password, is_verify) " +
         "VALUES (1234, 'test_company', 'test@example.com', 'password123', 1)";
 
     try {
-        jdbcTemplate.update(makeUser);
     } catch (Exception e) {
         // User might already exist
     }
@@ -104,11 +87,6 @@ void setup() {
         System.err.println("Error truncating tables: " + e.getMessage());
     }
 }
-  @BeforeEach
-    void ttt() {
-        // Mock rate limiter to always allow requests before each test
-        when(rateLimiter.rateLimiter(anyString())).thenReturn(true);
-    }
 
 @AfterEach
 void cleanup() {
@@ -122,22 +100,6 @@ void cleanup() {
         System.err.println("Error in cleanup: " + e.getMessage());
     }
 }
-=======
-
-    @BeforeAll
-    void setup() {
-        // Setup test user
-        String makeUser = 
-            "INSERT INTO user (user_id, company_name, email, password, is_verify) " +
-            "VALUES (1234, 'test_company', 'test@example.com', 'password123', 1)";
-        
-        try {
-            jdbcTemplate.update(makeUser);
-        } catch (Exception e) {
-            // User might already exist
-        }
-    }
->>>>>>> 39bef9c52dfbe4ac90b6246fa6fb564fb40b1660
 
     @org.junit.jupiter.api.BeforeEach
     void setupMocks() {
@@ -480,7 +442,7 @@ void cleanup() {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.processed").value(3));
     }
-<<<<<<< HEAD
+    
     @Test
 void testEcommerceEvents_KafkaToClickHouse_DEFAULT_SCHEMA() throws Exception {
 
@@ -493,16 +455,6 @@ void testEcommerceEvents_KafkaToClickHouse_DEFAULT_SCHEMA() throws Exception {
     jdbcTemplate.update(
         "ALTER TABLE default.sessions DELETE WHERE session_id = ?",
         "test-session-001"
-    );
-
-    // 1️⃣ Insert USER
-    jdbcTemplate.update(
-        "INSERT INTO default.users (user_id, company_name, email, password, is_verify, created_at) " +
-        "VALUES (?, ?, ?, ?, 1, now())",
-        "1234",
-        "Test Company",
-        "test@test.com",
-        "hashed"
     );
 
     // 2️⃣ Insert SESSION
@@ -609,78 +561,6 @@ void testEcommerceEvents_KafkaToClickHouse_DEFAULT_SCHEMA() throws Exception {
         });
 }
 
-=======
-
-    @Test
-    void testEcommerceEvents() throws Exception {
-        String ecommerceData = """
-        [
-            {
-                "type": "product_view",
-                "data": {
-                    "session_id": "test-session-001",
-                    "user_id": "test-user-001",
-                    "tracking_id": "test-tracking-001",
-                    "page_url": "https://example.com/product/123",
-                    "product_id": "PROD-123",
-                    "product_name": "Wireless Headphones",
-                    "price": 99.99,
-                    "category": "Electronics",
-                    "currency": "USD"
-                }
-            },
-            {
-                "type": "cart_add",
-                "data": {
-                    "session_id": "test-session-001",
-                    "user_id": "test-user-001",
-                    "tracking_id": "test-tracking-001",
-                    "page_url": "https://example.com/product/123",
-                    "product_id": "PROD-123",
-                    "product_name": "Wireless Headphones",
-                    "price": 99.99,
-                    "quantity": 1,
-                    "category": "Electronics",
-                    "currency": "USD"
-                }
-            },
-            {
-                "type": "checkout_step",
-                "data": {
-                    "session_id": "test-session-001",
-                    "user_id": "test-user-001",
-                    "tracking_id": "test-tracking-001",
-                    "page_url": "https://example.com/checkout",
-                    "step": 1,
-                    "step_name": "Shipping Information"
-                }
-            },
-            {
-                "type": "purchase",
-                "data": {
-                    "session_id": "test-session-001",
-                    "user_id": "test-user-001",
-                    "tracking_id": "test-tracking-001",
-                    "page_url": "https://example.com/order-confirmation",
-                    "order_id": "ORD-2024-001",
-                    "product_id": "PROD-123",
-                    "product_name": "Wireless Headphones",
-                    "price": 99.99,
-                    "quantity": 1,
-                    "total": 109.99,
-                    "currency": "USD"
-                }
-            }
-        ]
-        """;
-
-        mockMvc.perform(post("/receive_data")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(ecommerceData))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.processed").value(4));
-    }
->>>>>>> 39bef9c52dfbe4ac90b6246fa6fb564fb40b1660
 
     @Test
     void testCustomEvent() throws Exception {

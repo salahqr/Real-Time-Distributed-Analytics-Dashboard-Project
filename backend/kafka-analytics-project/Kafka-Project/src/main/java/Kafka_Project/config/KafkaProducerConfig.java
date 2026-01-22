@@ -14,10 +14,10 @@ import org.apache.kafka.common.serialization.StringSerializer;
 
 @Configuration
 public class KafkaProducerConfig {
-    
-    @Value("${spring.kafka.bootstrap-servers:localhost:19092,localhost:19093,localhost:19094}")
+        
+    @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
-    
+        
     @Bean
     public ProducerFactory<String, String> producerFactory() {
         Map<String, Object> config = new HashMap<>();
