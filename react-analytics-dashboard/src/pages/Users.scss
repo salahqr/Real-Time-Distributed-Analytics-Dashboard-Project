@@ -1,0 +1,260 @@
+/* src/app/users/users.scss */
+@use 'sass:color';
+
+/* Variables (Matching Dashboard/Dark Mode) */
+$primary-blue: #2563eb;
+$secondary-green: #10b981;
+$background-light: #f4f7fb;
+$background-dark: #1f2937;
+$card-dark: #374151;
+$text-dark: #1f2937;
+$text-light: #ffffff;
+$sidebar-bg: #1f2937;
+$sidebar-text: #e5e7eb;
+$gray-border-dark: #4b5563;
+
+.dashboard-layout {
+  display: flex;
+  min-height: 100vh;
+  font-family: 'Arial', sans-serif;
+  background-color: $background-dark;
+  color: $text-light;
+  direction: ltr;
+}
+
+/* ----------------------------------- */
+/* 1. Sidebar Styling (Copied from dashboard) */
+/* ----------------------------------- */
+
+.sidebar {
+  width: 250px;
+  background-color: $sidebar-bg;
+  color: $sidebar-text;
+  padding: 20px 0;
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  z-index: 100;
+
+  .logo {
+    font-size: 24px;
+    font-weight: 700;
+    color: $secondary-green;
+    text-align: center;
+    margin-bottom: 40px;
+    padding: 0 20px;
+  }
+
+  .nav-links a {
+    display: flex;
+    align-items: center;
+    padding: 15px 20px;
+    color: $sidebar-text;
+    text-decoration: none;
+    font-size: 16px;
+    transition: background-color 0.2s;
+
+    .fas {
+      margin-right: 15px;
+      width: 20px;
+      text-align: center;
+    }
+
+    &:hover,
+    &.active {
+      background-color: #374151;
+      color: $text-light;
+      border-left: 3px solid $primary-blue;
+    }
+  }
+  .logout {
+    margin-top: auto;
+    color: #f87171 !important;
+    &:hover {
+      background-color: #374151;
+      border-left-color: #f87171;
+    }
+  }
+
+  @media (max-width: 992px) {
+    width: 80px;
+    .logo,
+    .nav-links a span {
+      display: none;
+    }
+    .nav-links a {
+      justify-content: center;
+    }
+    .nav-links a .fas {
+      margin: 0;
+    }
+  }
+}
+
+/* ----------------------------------- */
+/* 2. Main Content & Header  */
+/* ----------------------------------- */
+
+.main-content {
+  flex-grow: 1;
+  padding: 30px 40px;
+  overflow-y: auto;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+
+  h1 {
+    font-size: 32px;
+    color: $text-light;
+  }
+}
+
+/* --- Search Bar Styling --- */
+.search-bar {
+  position: relative;
+  width: 350px;
+
+  .search-input {
+    width: 100%;
+    padding: 10px 15px 10px 45px;
+    border: 1px solid $gray-border-dark;
+    border-radius: 8px;
+    background-color: $card-dark;
+    color: $text-light;
+    font-size: 16px;
+
+    &::placeholder {
+      color: #9ca3af;
+    }
+    &:focus {
+      outline: none;
+      border-color: $primary-blue;
+    }
+  }
+  .search-icon {
+    position: absolute;
+    top: 50%;
+    left: 15px;
+    transform: translateY(-50%);
+    color: #9ca3af;
+  }
+}
+
+/* ----------------------------------- */
+/* 3. Users Table Styling    */
+/* ----------------------------------- */
+
+.users-panel {
+  background-color: $card-dark;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  overflow-x: auto;
+}
+
+.users-table {
+  width: 100%;
+  min-width: 800px;
+  border-collapse: collapse;
+  font-size: 15px;
+
+  th,
+  td {
+    padding: 15px 10px;
+    text-align: left;
+  }
+
+  th {
+    color: #9ca3af;
+    font-weight: 600;
+    border-bottom: 1px solid $gray-border-dark;
+    text-transform: uppercase;
+    font-size: 13px;
+  }
+
+  td {
+    color: $text-light;
+    border-bottom: 1px solid #2d3748;
+  }
+
+  tr:hover {
+    background-color: #4b5563;
+  }
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+
+  .avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: $primary-blue;
+    color: $text-light;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: 700;
+    font-size: 16px;
+    margin-right: 15px;
+    flex-shrink: 0;
+  }
+
+  .name {
+    display: block;
+    font-weight: 600;
+    font-size: 16px;
+  }
+  .email {
+    display: block;
+    font-size: 13px;
+    color: #9ca3af;
+  }
+}
+
+.events-count {
+  font-weight: 700;
+  color: $secondary-green;
+}
+
+.btn-view-detail {
+  background-color: $primary-blue;
+  color: $text-light;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: color.adjust($primary-blue, $lightness: -10%);
+  }
+
+  .fas {
+    margin-left: 8px;
+  }
+}
+
+/* --- No Results Message --- */
+.no-results {
+  text-align: center;
+  padding: 50px 0;
+  color: #9ca3af;
+  font-size: 18px;
+
+  .fas {
+    font-size: 30px;
+    margin-bottom: 10px;
+  }
+}
