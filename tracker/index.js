@@ -1,6 +1,8 @@
-  (function() {
-    class AnalyticsTracker {
-      constructor() {
+(function () {
+  'use strict';
+
+  class AnalyticsTracker {
+    constructor() {
       // Get configuration from script tag
       this.config = this.getConfig();
 
@@ -87,7 +89,7 @@
 
     generateId() {
       return 'xxxx-xxxx-xxxx'.replace(/[x]/g, () =>
-        ((Math.random() * 16) | 0).toString(16)
+        ((Math.random() * 16) | 0).toString(16),
       );
     }
 
@@ -221,7 +223,7 @@
           method: form.method || 'GET',
           field_count: form.elements.length,
           has_file_upload: Array.from(form.elements).some(
-            (el) => el.type === 'file'
+            (el) => el.type === 'file',
           ),
           timestamp: new Date().toISOString(),
           page_url: window.location.href,
@@ -387,7 +389,7 @@
           scroll_depth_max: Math.max(
             ...(this.eventBuffer.scroll_events.map((s) => s.scroll_percent) || [
               0,
-            ])
+            ]),
           ),
           click_count: this.eventBuffer.clickCount,
           ts: Date.now(),
@@ -593,7 +595,7 @@
 
     hasEventData() {
       return Object.values(this.eventBuffer).some((buffer) =>
-        Array.isArray(buffer) ? buffer.length > 0 : buffer !== null
+        Array.isArray(buffer) ? buffer.length > 0 : buffer !== null,
       );
     }
 
@@ -707,4 +709,3 @@
       analytics.trackCheckoutStep(step, stepName),
   };
 })();
- 
