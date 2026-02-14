@@ -1,8 +1,6 @@
-(function () {
-  'use strict';
-
-  class AnalyticsTracker {
-    constructor() {
+  (function() {
+    class AnalyticsTracker {
+      constructor() {
       // Get configuration from script tag
       this.config = this.getConfig();
 
@@ -709,3 +707,4 @@
       analytics.trackCheckoutStep(step, stepName),
   };
 })();
+ 
